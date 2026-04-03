@@ -1,0 +1,50 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+)
+
+type VanaTimeResponse struct {
+	Data struct {
+		Year    int    `json:"year"`
+		Month   int    `json:"month"`
+		Day     int    `json:"day"`
+		Weekday string `json:"weekday"`
+	} `json:"data"`
+}
+
+func absoluteVanaDay(year, month, day int) int {
+	return year*360 + (month-1)*30 + (day - 1)
+}
+
+func main() {
+	resp, err := http.Get("https://vana-time.com/api/v1/time/vanadiel")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var vt VanaTimeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&vt); err != nil {
+		log.Fatal(err)
+	}
+
+	absDay := absoluteVanaDay(vt.Data.Year, vt.Data.Month, vt.Data.Day)
+	cycleIdx := absDay % 2160
+	if cycleIdx < 0 {
+		cycleIdx += 2160
+	}
+
+	fmt.Printf(
+		"Vana date: %04d-%02d-%02d %s\nAbsolute day: %d\nWeather cycle index: %d\n",
+		vt.Data.Year,
+		vt.Data.Month,
+		vt.Data.Day,
+		vt.Data.Weekday,
+		absDay,
+		cycleIdx,
+	)
+}

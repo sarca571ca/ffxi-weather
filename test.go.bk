@@ -1,0 +1,134 @@
+package main
+
+import (
+	"encoding/binary"
+	"encoding/hex"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/joho/godotenv"
+	"github.com/sarca571ca/ffxi-weather/internal/models"
+)
+
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Failed to load .env")
+	}
+	Blob := os.Getenv("BLOB")
+
+	seq := []uint16{
+		1057,
+		0000,
+		0000,
+		0000,
+		8456,
+	}
+
+	// intSeq := [][]int{
+	// 	{9, 9, 9},
+	// 	{9, 9, 9},
+	// 	{8, 1, 9},
+	// 	{8, 1, 9},
+	// 	{8, 1, 1},
+	// }
+
+	intSeq := [][]int{
+		{8, 1, 1},
+		{8, 1, 9},
+		{8, 1, 9},
+		{9, 9, 9},
+		{9, 9, 9},
+	}
+
+	testOne("0821")
+	testTwo(Blob, seq)
+	testThree(seq)
+	testFour(seq)
+	testFive(intSeq)
+}
+
+func testOne(blob string) error {
+	raw, err := hex.DecodeString(blob)
+	if err != nil {
+		return err
+	}
+
+	packed := make([]uint16, len(raw)/2)
+	log.Println("packed:", packed)
+	for i := range len(packed) {
+		packed[i] = binary.LittleEndian.Uint16(raw[i*2 : i*2+2])
+		buf := make([]byte, 2)
+		binary.LittleEndian.PutUint16(buf, packed[i])
+		log.Printf("packed[%d]=%d back=%s", i, packed[i], hex.EncodeToString(buf))
+	}
+	return nil
+}
+
+func testTwo(blob string, seq []uint16) error {
+	// Returns a match for a blob string
+	log.Printf("len(blob): %v, seq: %v", len(blob)/4, seq)
+	raw, err := hex.DecodeString(strings.TrimPrefix(blob, "0x"))
+	if err != nil {
+		return err
+	}
+
+	packed := make([]uint16, len(raw)/2)
+	for i := range len(packed) {
+		packed[i] = binary.LittleEndian.Uint16(raw[i*2 : i*2+2])
+	}
+
+	var seqBuf []string
+	for i := range len(seq) {
+		buf := make([]byte, 2)
+		binary.LittleEndian.PutUint16(buf, seq[i])
+		log.Printf("seq[%v]: %s", i, hex.EncodeToString(buf))
+		seqBuf = append(seqBuf, hex.EncodeToString(buf))
+	}
+
+	log.Printf("seqBuf: %v", seqBuf)
+
+	return nil
+}
+
+func testThree(seq []uint16) error {
+	var weatherSequence []models.DayWeather
+	for i := range len(seq) {
+		normal, common, rare := models.DecodePacked(seq[i])
+		weatherDay := models.DayWeather{
+			VanaDay: int64(i),
+			Normal:  normal,
+			Common:  common,
+			Rare:    rare,
+		}
+		weatherSequence = append(weatherSequence, weatherDay)
+	}
+	log.Println(weatherSequence)
+	return nil
+}
+
+func testFour(seq []uint16) error {
+	// var bitSeq []uint8
+	for i := range len(seq) {
+		normal := seq[i] >> 10
+		common := (seq[i] >> 5) & 0x1F
+		rare := seq[i] & 0x1F
+		log.Printf("normal: %v\tcommon: %v\trare: %v", normal, common, rare)
+	}
+	return nil
+}
+
+func testFive(intSeq [][]int) error {
+	var encodeList []uint16
+	var stringList []string
+	for i := range len(intSeq) {
+		v := uint16(intSeq[i][0]<<10 | intSeq[i][1]<<5 | intSeq[i][2])
+		encodeList = append(encodeList, v)
+		buf := make([]byte, 2)
+		binary.LittleEndian.PutUint16(buf, v)
+		stringList = append(stringList, hex.EncodeToString(buf))
+	}
+	log.Println(encodeList)
+	log.Println(stringList)
+	return nil
+}
