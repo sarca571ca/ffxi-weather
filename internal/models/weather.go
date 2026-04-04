@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 )
@@ -75,6 +76,11 @@ type DayWeather struct {
 	Rare    Weather
 }
 
+type WeatherForecast struct {
+	Day     int
+	Weather DayWeather
+}
+
 type WeatherBlob struct {
 	packed []uint16
 }
@@ -140,4 +146,39 @@ func BuildWeatherSequence(seq [][3]uint8) []byte {
 		out = append(out, byte(v>>8), byte(v))
 	}
 	return out
+}
+
+func (w *WeatherBlob) BuildWeatherForecast(days int, now time.Time) ([]WeatherForecast, error) {
+	var fullForecast []WeatherForecast
+	for d := range days {
+		weather, err := w.WeatherForVanaDay(currentVanaDayFromUnix(now.Unix()) + int64(d))
+		if err != nil {
+			return []WeatherForecast{}, nil
+		}
+
+		forecast := WeatherForecast{
+			Day:     d,
+			Weather: weather,
+		}
+
+		fullForecast = append(fullForecast, forecast)
+	}
+	return fullForecast, nil
+}
+
+func ReportForecast(forecast []WeatherForecast) error {
+	for f := range len(forecast) {
+		report := forecast[f]
+		log.Printf(
+			// "Day: %v, VandaDay: %v, Normal: %v | Common: %v | Rare: %v",
+			"Day: %v, VandaDay: %v, Common: %v | Normal: %v | Rare: %v",
+			report.Day,
+			report.Weather.VanaDay,
+			// report.Weather.Normal,
+			report.Weather.Common,
+			report.Weather.Normal,
+			report.Weather.Rare,
+		)
+	}
+	return nil
 }

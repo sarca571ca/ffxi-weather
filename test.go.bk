@@ -3,132 +3,99 @@ package main
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/sarca571ca/ffxi-weather/internal/models"
 )
 
+func weatherName(id uint16) string {
+	switch id {
+	case 0:
+		return "NONE"
+	case 1:
+		return "SUNSHINE"
+	case 2:
+		return "CLOUDS"
+	case 3:
+		return "FOG"
+	case 4:
+		return "HOT_SPELL"
+	case 5:
+		return "HEAT_WAVE"
+	case 6:
+		return "RAIN"
+	case 7:
+		return "SQUALL"
+	case 8:
+		return "DUST_STORM"
+	case 9:
+		return "SAND_STORM"
+	case 10:
+		return "WIND"
+	case 11:
+		return "GALES"
+	case 12:
+		return "SNOW"
+	case 13:
+		return "BLIZZARDS"
+	case 14:
+		return "THUNDER"
+	case 15:
+		return "THUNDERSTORMS"
+	case 16:
+		return "AURORAS"
+	case 17:
+		return "STELLAR_GLARE"
+	case 18:
+		return "GLOOM"
+	case 19:
+		return "DARKNESS"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+func decodePacked(v uint16) (uint16, uint16, uint16) {
+	return v >> 10, (v >> 5) & 0x1F, v & 0x1F
+}
+
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Failed to load .env")
+		log.Println(err)
 	}
-	Blob := os.Getenv("BLOB")
+	eBlob := os.Getenv("BLOB")
+	blob := strings.TrimPrefix(eBlob, "0x")
 
-	seq := []uint16{
-		1057,
-		0000,
-		0000,
-		0000,
-		8456,
-	}
-
-	// intSeq := [][]int{
-	// 	{9, 9, 9},
-	// 	{9, 9, 9},
-	// 	{8, 1, 9},
-	// 	{8, 1, 9},
-	// 	{8, 1, 1},
-	// }
-
-	intSeq := [][]int{
-		{8, 1, 1},
-		{8, 1, 9},
-		{8, 1, 9},
-		{9, 9, 9},
-		{9, 9, 9},
-	}
-
-	testOne("0821")
-	testTwo(Blob, seq)
-	testThree(seq)
-	testFour(seq)
-	testFive(intSeq)
-}
-
-func testOne(blob string) error {
 	raw, err := hex.DecodeString(blob)
 	if err != nil {
-		return err
+		log.Fatal(err)
+	}
+	if len(raw)%2 != 0 {
+		log.Fatal("blob length must be even")
 	}
 
-	packed := make([]uint16, len(raw)/2)
-	log.Println("packed:", packed)
-	for i := range len(packed) {
-		packed[i] = binary.LittleEndian.Uint16(raw[i*2 : i*2+2])
-		buf := make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, packed[i])
-		log.Printf("packed[%d]=%d back=%s", i, packed[i], hex.EncodeToString(buf))
+	ut := models.CurrentVanaDayFromUnix(time.Now().Unix())
+	startDay := int(ut) % 2160
+	log.Println(startDay)
+	count := 8
+
+	for day := startDay; day < startDay+count && day < len(raw)/2; day++ {
+		v := binary.LittleEndian.Uint16(raw[day*2 : day*2+2])
+		n, c, r := decodePacked(v)
+
+		fmt.Printf(
+			"day=%d raw=%04x v=%d => %s | %s | %s\n",
+			day,
+			v,
+			v,
+			weatherName(c),
+			weatherName(n),
+			weatherName(r),
+		)
 	}
-	return nil
-}
-
-func testTwo(blob string, seq []uint16) error {
-	// Returns a match for a blob string
-	log.Printf("len(blob): %v, seq: %v", len(blob)/4, seq)
-	raw, err := hex.DecodeString(strings.TrimPrefix(blob, "0x"))
-	if err != nil {
-		return err
-	}
-
-	packed := make([]uint16, len(raw)/2)
-	for i := range len(packed) {
-		packed[i] = binary.LittleEndian.Uint16(raw[i*2 : i*2+2])
-	}
-
-	var seqBuf []string
-	for i := range len(seq) {
-		buf := make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, seq[i])
-		log.Printf("seq[%v]: %s", i, hex.EncodeToString(buf))
-		seqBuf = append(seqBuf, hex.EncodeToString(buf))
-	}
-
-	log.Printf("seqBuf: %v", seqBuf)
-
-	return nil
-}
-
-func testThree(seq []uint16) error {
-	var weatherSequence []models.DayWeather
-	for i := range len(seq) {
-		normal, common, rare := models.DecodePacked(seq[i])
-		weatherDay := models.DayWeather{
-			VanaDay: int64(i),
-			Normal:  normal,
-			Common:  common,
-			Rare:    rare,
-		}
-		weatherSequence = append(weatherSequence, weatherDay)
-	}
-	log.Println(weatherSequence)
-	return nil
-}
-
-func testFour(seq []uint16) error {
-	// var bitSeq []uint8
-	for i := range len(seq) {
-		normal := seq[i] >> 10
-		common := (seq[i] >> 5) & 0x1F
-		rare := seq[i] & 0x1F
-		log.Printf("normal: %v\tcommon: %v\trare: %v", normal, common, rare)
-	}
-	return nil
-}
-
-func testFive(intSeq [][]int) error {
-	var encodeList []uint16
-	var stringList []string
-	for i := range len(intSeq) {
-		v := uint16(intSeq[i][0]<<10 | intSeq[i][1]<<5 | intSeq[i][2])
-		encodeList = append(encodeList, v)
-		buf := make([]byte, 2)
-		binary.LittleEndian.PutUint16(buf, v)
-		stringList = append(stringList, hex.EncodeToString(buf))
-	}
-	log.Println(encodeList)
-	log.Println(stringList)
-	return nil
 }
