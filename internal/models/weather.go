@@ -170,13 +170,13 @@ func ReportForecast(forecast []WeatherForecast) error {
 	for f := range len(forecast) {
 		report := forecast[f]
 		log.Printf(
-			// "Day: %v, VandaDay: %v, Normal: %v | Common: %v | Rare: %v",
-			"Day: %v, VandaDay: %v, Common: %v | Normal: %v | Rare: %v",
+			"Day: %v, VandaDay: %v, Normal: %v | Common: %v | Rare: %v",
+			// "Day: %v, VandaDay: %v, Common: %v | Normal: %v | Rare: %v",
 			report.Day,
 			report.Weather.VanaDay,
-			// report.Weather.Normal,
-			report.Weather.Common,
 			report.Weather.Normal,
+			report.Weather.Common,
+			// report.Weather.Normal,
 			report.Weather.Rare,
 		)
 	}
